@@ -11,6 +11,17 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 warnings.filterwarnings('ignore')
+from datetime import datetime
+
+@st.cache
+def load_data(file_path):
+    return pd.read_csv(file_path, encoding='latin-1')
+
+@st.cache
+def preprocess_data(df):
+    # Perform data preprocessing steps here
+    return df
+
 
 st.set_page_config(
     page_title="Fault Analysis Dashboard !!!",
@@ -27,7 +38,8 @@ if fl is not None:
     df = pd.read_csv(filename, encoding='latin-1')
 else:
     os.chdir(r"C:\Users\Anant\OneDrive\Desktop\project\Interactive Dasboard")
-    df = pd.read_csv(r"C:\Users\Anant\OneDrive\Desktop\project\Interactive Dasboard\Working_Dataset_2.csv", encoding='latin-1')
+    df = pd.read_csv(r"C:\Users\Anant\OneDrive\Desktop\project\Interactive Dasboard\psc_final_dataset.csv", encoding='latin-1')
+
 #Main Developement starts here
 col1, col2 = st.columns((2))
 df['Fault_Date'] = pd.to_datetime(df['OPEN_DATE'])
@@ -59,10 +71,15 @@ if len(District) > 0:
 ZONE_ID = st.sidebar.multiselect("Select the Zone", df['ZONE_ID'].unique())
 if len(ZONE_ID) > 0:
     df = df[df['ZONE_ID'].isin(ZONE_ID)]
+    last_protection_visitor_name = df['LAST_PROTECTION_VISITOR_NAME'].iloc[0]  # Get the first value, assuming it's the same for all rows
+    st.write(f"LAST_PROTECTION_VISITOR's_NAME for {ZONE_ID[0]}: {last_protection_visitor_name}")
+
 
 Feeder = st.sidebar.multiselect("Select the Feeder", df['FEEDER_NAME'].unique())
 if len(Feeder) > 0:
     df = df[df['FEEDER_NAME'].isin(Feeder)]
+    last_protection_visitor_name = df['LAST_PROTECTION_VISITOR_NAME'].iloc[0]  # Get the first value, assuming it's the same for all rows
+    st.write(f"LAST_PROTECTION_VISITOR's_NAME for {Feeder[0]}: {last_protection_visitor_name}")
 
 substation = st.sidebar.multiselect("Select the Substation", df['SUBSTATION_NAME'].unique())
 if len(substation) > 0:
@@ -78,13 +95,7 @@ grouped_df = df.groupby(by=['FAULT_TYPE', 'FEEDER_NAME', 'ZONE_ID', 'FAULT_REASO
 
 col1, col2 = st.columns((2))
 
-with col1:
-    st.header("Fault Category")
-    
-    # Pie chart for overall fault types
-    fig = px.pie(grouped_df, values='Number of Faults', names='FAULT_TYPE', title='Fault Category')
-    st.plotly_chart(fig)
-
+#Graphical Representation of Faults
 with col2:
     st.header("Where Faults Meet Their Reasons")
     
@@ -100,19 +111,6 @@ with col2:
 
 col1, col2 = st.columns((2))
 
-with col1:
-    with st.expander("Fault Category"):
-        st.write(filtered_df.style.background_gradient(cmap="Blues"))
-        csv = filtered_df.to_csv(index=False)  # some strings <-> bytes conversions necessary here
-        st.download_button(
-            label="Download data as CSV",
-            data=csv,
-            file_name='category_df.csv',
-            mime='text/csv',
-            key="download_button_1",  # Unique key for the first download button
-            help="Click here to download the data"
-        )
-
 with col2:
     with st.expander("Where Faults Meet Their Reasons"):
         st.write(filtered_df.style.background_gradient(cmap="Blues"))
@@ -126,7 +124,31 @@ with col2:
             help="Click here to download the data"
         )
 
-        # Time series Analysis
+with col1:
+    st.header("Fault Category")
+    
+    # Pie chart for overall fault types
+    fig = px.pie(grouped_df, values='Number of Faults', names='FAULT_TYPE', title='Fault Category')
+st.plotly_chart(fig, margin=dict(l=10, r=10, t=20, b=20))
+
+with col1:
+    with st.expander("Fault Category"):
+# Adjust the margin to move the graph slightly to the right
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.write(filtered_df.style.background_gradient(cmap="Blues"))
+        csv = filtered_df.to_csv(index=False)  # some strings <-> bytes conversions necessary here
+        st.download_button(
+            label="Download data as CSV",
+            data=csv,
+            file_name='category_df.csv',
+            mime='text/csv',
+            key="download_button_1",  # Unique key for the first download button
+            help="Click here to download the data"
+        )
+
+
+        
+# Time series Analysis
 st.header("Time Series Analysis - Open and Close Dates of Faults")
 
 # Filtered DataFrame based on the selected feeder
@@ -143,31 +165,13 @@ fig3.update_layout(title=f'Faults Over Time for Feeder: {selected_feeder}',
 
 st.plotly_chart(fig3)
 
-# Segmen
-
-
-# Here I'm Applying Machine Learning Model
-X = df[['FAULT_TYPE', 'FEEDER_NAME', 'ZONE_ID', 'FAULT_REASON']]
-y = df['FEEDER_NAME']  # Replace 'Label' with the actual column representing the target variable
-
-# Convert categorical variables to numerical representation
-label_encoders = {}
-for column in X.columns:
-    le = LabelEncoder()
-    X[column] = le.fit_transform(X[column])
-    label_encoders[column] = le
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Train the model
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
-
-# Evaluate the model
-y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f"Model Accuracy: {accuracy}")
-
-# Provide suggestions
-# You can use the trained model to make predictions on new data and provide preventive maintenance suggestions.
+## ZSO_NAME display based on selected Zone
+selected_zone_id = st.sidebar.selectbox("Select the Zone ID", df['ZONE_ID'].unique())
+if selected_zone_id is not None:
+    selected_zone_data = df[df['ZONE_ID'] == selected_zone_id].head(1)  # Assuming ZSO_NAME is the same for all rows with the same ZONE_ID
+    
+    if 'ZSO_NAME' in selected_zone_data.columns:
+        selected_zso_name = selected_zone_data['ZSO_NAME'].iloc[0]
+        st.sidebar.write(f"ZSO_NAME for {selected_zone_id}: {selected_zso_name}")
+    else:
+        st.sidebar.warning("ZSO_NAME column not found for the selected ZONE_ID.")
